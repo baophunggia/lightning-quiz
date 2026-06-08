@@ -15,7 +15,7 @@ const WebApp = window.Telegram?.WebApp || {
 const QUESTIONS = [
   { q: "Which planet is known as the Red Planet?", a: "Mars", options: ["Venus", "Mars", "Jupiter", "Saturn"] },
   { q: "What is the capital of Japan?", a: "Tokyo", options: ["Seoul", "Beijing", "Tokyo", "Bangkok"] },
-  { q: "Who painted the Mona Lisa?", a: "Leonardo da Vinci", options: ["Van Gogh", "Picasso", "Da Vinci", "Rembrandt"] },
+  { q: "Who painted the Mona Lisa?", a: "Leonardo da Vinci", options: ["Van Gogh", "Picasso", "Leonardo da Vinci", "Rembrandt"] },
   { q: "What is the chemical symbol for Gold?", a: "Au", options: ["Ag", "Au", "Fe", "Cu"] },
   { q: "Which ocean is the largest?", a: "Pacific", options: ["Atlantic", "Indian", "Arctic", "Pacific"] },
   { q: "What is the hardest natural substance?", a: "Diamond", options: ["Gold", "Iron", "Diamond", "Platinum"] },
