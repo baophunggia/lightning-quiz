@@ -97,7 +97,7 @@ export default function App() {
       try {
         setIsLoading(true);
         // Khởi tạo Adsgram với blockId của bạn
-        const AdController = window.Adsgram?.init({ blockId: "YOUR_BLOCK_ID_HERE" });
+        const AdController = window.Adsgram?.init({ blockId: "34514" });
 
         if (AdController) {
           await AdController.show();
