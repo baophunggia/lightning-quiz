@@ -265,10 +265,9 @@ export default function App() {
           </div>
         )}
 
-        {/* GAME OVER */}
-        {/* ==================== GAME OVER ==================== */}
         {gameState === 'gameover' && (
           <div className="flex-1 flex flex-col pb-8">
+            {/* Header kết quả */}
             <div className="text-center mt-8 mb-8">
               <h2 className="text-4xl font-black text-yellow-500">
                 {maxLevelReached >= 10 ? 'VICTORY!' : 'GAME OVER'}
@@ -280,7 +279,7 @@ export default function App() {
               <p className="text-sm text-gray-500">điểm trận này</p>
             </div>
 
-            {/* Leaderboard Section */}
+            {/* Leaderboard */}
             <div className="bg-gray-900/50 rounded-3xl border border-gray-800 p-5 mb-6 flex-1 flex flex-col">
               <div className="flex items-center gap-3 mb-5 text-yellow-500">
                 <Medal size={26} />
@@ -290,8 +289,7 @@ export default function App() {
               {isLoading ? (
                 <div className="flex-1 flex flex-col items-center justify-center py-12">
                   <Loader2 className="animate-spin text-yellow-500 mb-4" size={48} />
-                  <p className="text-gray-400">Đang tính điểm & cập nhật bảng xếp hạng...</p>
-                  <p className="text-xs text-gray-600 mt-2">Vui lòng chờ trong giây lát</p>
+                  <p className="text-gray-400">Đang cập nhật bảng xếp hạng...</p>
                 </div>
               ) : leaderboardData.length > 0 ? (
                 <div className="space-y-3 flex-1 overflow-auto pr-2">
@@ -324,16 +322,31 @@ export default function App() {
                   })}
                 </div>
               ) : (
-                <div className="flex-1 flex items-center justify-center text-gray-500">
-                  Không có dữ liệu bảng xếp hạng
+                <div className="flex-1 flex items-center justify-center text-gray-500 py-10">
+                  Không có dữ liệu
                 </div>
               )}
             </div>
 
+            {!isLoading && userRank && (
+              <div className="bg-gradient-to-r from-yellow-500 to-amber-500 text-black rounded-3xl p-6 mb-6 shadow-xl">
+                <div className="flex items-center justify-between">
+                  <div>
+                    <div className="uppercase text-xs font-bold tracking-widest opacity-75">XẾP HẠNG CỦA BẠN</div>
+                    <div className="text-5xl font-black">#{userRank}</div>
+                  </div>
+                  <div className="text-right">
+                    <div className="font-bold text-xl">{user?.first_name}</div>
+                    <div className="text-sm opacity-80">Level {maxLevelReached} • Best: {userFinalScore.toLocaleString()}</div>
+                  </div>
+                </div>
+              </div>
+            )}
+
             <button
               onClick={startGame}
               disabled={isLoading}
-              className="w-full bg-white text-black font-bold py-5 rounded-3xl flex items-center justify-center gap-3 text-lg active:scale-95 transition-all disabled:opacity-70"
+              className="w-full bg-white text-black font-bold py-5 rounded-3xl flex items-center justify-center gap-3 text-lg active:scale-95 transition-all disabled:opacity-70 mt-auto"
             >
               <RotateCcw size={22} /> CHƠI LẠI
             </button>
