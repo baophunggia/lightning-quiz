@@ -26,7 +26,7 @@ export default function App() {
   const [feedback, setFeedback] = useState(null);
   const [user, setUser] = useState(null);
 
-  const [logs, setLogs] = useState([]);           // ← Mới: lưu lịch sử trả lời
+  const [logs, setLogs] = useState([]);
   const [gameStartTime, setGameStartTime] = useState(0);
 
   const [leaderboardData, setLeaderboardData] = useState([]);
@@ -34,16 +34,44 @@ export default function App() {
   const [userFinalScore, setUserFinalScore] = useState(0);
 
   const [isLoading, setIsLoading] = useState(false);
+  const [playsToday, setPlaysToday] = useState(0);
+  const [currentStreak, setCurrentStreak] = useState(0);
 
   // Init Telegram WebApp
   useEffect(() => {
-    if (WebApp.initDataUnsafe?.user) {
-      setUser(WebApp.initDataUnsafe.user);
-      WebApp.ready();
-      WebApp.expand();
-    } else {
-      setUser({ first_name: "Player", username: "tester", id: 123456789 });
-    }
+    const initApp = async () => {
+      if (WebApp.initDataUnsafe?.user) {
+        setUser(WebApp.initDataUnsafe.user);
+        WebApp.ready();
+        WebApp.expand();
+
+        // Gửi chuỗi raw initData lên Server xử lý xác thực bảo mật
+        try {
+          const res = await fetch('/api/init-user', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ initData: WebApp.initData })
+          });
+
+          if (res.ok) {
+            const data = await res.json();
+            // Đồng bộ trạng thái từ Database về giao diện người dùng
+            setPlaysToday(data.plays_today);
+            setCurrentStreak(data.current_streak);
+            setMaxLevelReached(data.max_level || 0);
+          }
+        } catch (err) {
+          console.error("Lỗi đồng bộ thông tin ban đầu:", err);
+        }
+      } else {
+        // Dữ liệu giả lập khi bạn chạy thử trên trình duyệt máy tính bình thường
+        setUser({ first_name: "Player Tester", username: "tester", id: 123456789 });
+        setPlaysToday(0);
+        setCurrentStreak(3);
+      }
+    };
+
+    initApp();
   }, []);
 
   // Timer
@@ -56,6 +84,42 @@ export default function App() {
     }
     return () => clearInterval(timer);
   }, [gameState, timeLeft]);
+
+  const handlePlayClick = async () => {
+    // Lượt 1: Miễn phí
+    if (playsToday === 0) {
+      startGame();
+      return;
+    }
+
+    // Lượt 2: Xem video 15s
+    if (playsToday === 1) {
+      try {
+        setIsLoading(true);
+        // Khởi tạo Adsgram với blockId của bạn
+        const AdController = window.Adsgram?.init({ blockId: "YOUR_BLOCK_ID_HERE" });
+
+        if (AdController) {
+          await AdController.show();
+          // User xem xong quảng cáo thành công
+          startGame();
+        } else {
+          // Fallback nếu script adsgram lỗi chặn (adblocker)
+          alert("Không thể tải quảng cáo. Vui lòng tắt Adblock và thử lại.");
+        }
+      } catch (err) {
+        // User skip quảng cáo giữa chừng hoặc lỗi mạng
+        console.warn("Ad skipped or failed", err);
+        alert("Bạn cần xem hết video để nhận thêm lượt chơi!");
+      } finally {
+        setIsLoading(false);
+      }
+      return;
+    }
+
+    // Đã hết 2 lượt
+    alert("Bạn đã hết lượt chơi hôm nay. Hãy quay lại vào ngày mai để chơi tiếp và giữ Streak nhé!");
+  };
 
   const loadNewQuestions = async () => {
     setIsLoading(true);
@@ -116,6 +180,8 @@ export default function App() {
         setUserFinalScore(data.final_score || calculatedScore);
         setLeaderboardData(data.leaderboard || []);
         setUserRank(data.user_rank);
+        setPlaysToday(data.plays_today);
+        setCurrentStreak(data.current_streak);
       }
     } catch (err) {
       console.error("Lỗi submit:", err);
@@ -211,12 +277,15 @@ export default function App() {
             </h1>
             <p className="text-gray-400 mb-8 px-4">Answer 10 questions correctly in a row.<br />Fast answers get higher ranks!</p>
             <button
-              onClick={startGame}
-              disabled={isLoading}
-              className="w-full bg-yellow-500 hover:bg-yellow-400 disabled:bg-yellow-700 text-black font-bold text-lg py-4 rounded-2xl flex items-center justify-center gap-2 active:scale-95 transition-all"
+              onClick={handlePlayClick}
+              disabled={isLoading || playsToday >= 2}
+              className="w-full bg-yellow-500 hover:bg-yellow-400 disabled:bg-gray-700 disabled:text-gray-400 text-black font-bold text-lg py-4 rounded-2xl flex items-center justify-center gap-2 active:scale-95 transition-all"
             >
               {isLoading ? <Loader2 className="animate-spin" size={24} /> : <Play size={24} />}
-              {isLoading ? 'LOADING...' : 'PLAY NOW'}
+              {isLoading ? 'LOADING...'
+                : playsToday === 0 ? 'PLAY NOW (FREE)'
+                  : playsToday === 1 ? 'WATCH AD TO PLAY'
+                    : 'COME BACK TOMORROW'}
             </button>
           </div>
         )}
@@ -299,8 +368,8 @@ export default function App() {
                       <div
                         key={idx}
                         className={`flex justify-between items-center bg-black/60 p-4 rounded-2xl border transition-all ${isCurrentUser
-                            ? 'border-yellow-500 bg-yellow-500/10 ring-1 ring-yellow-500'
-                            : 'border-gray-800'
+                          ? 'border-yellow-500 bg-yellow-500/10 ring-1 ring-yellow-500'
+                          : 'border-gray-800'
                           }`}
                       >
                         <div className="flex items-center gap-4">
@@ -344,7 +413,7 @@ export default function App() {
             )}
 
             <button
-              onClick={startGame}
+              onClick={handlePlayClick}
               disabled={isLoading}
               className="w-full bg-white text-black font-bold py-5 rounded-3xl flex items-center justify-center gap-3 text-lg active:scale-95 transition-all disabled:opacity-70 mt-auto"
             >
