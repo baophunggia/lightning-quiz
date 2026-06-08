@@ -229,6 +229,8 @@ export default function App() {
             </div>
           </div>
         )}
+
+        {/* Giữ nguyên phần GAME OVER như cũ */}
         {gameState === 'gameover' && (
           <div className="bg-gray-900/50 rounded-2xl border border-gray-800 p-4 mb-4 min-h-[200px]">
             <div className="flex items-center gap-2 mb-4 text-yellow-500">
@@ -259,6 +261,59 @@ export default function App() {
             ) : (
               <div className="text-center py-6 text-gray-600 italic">Chưa có dữ liệu xếp hạng</div>
             )}
+          </div>
+        )}
+        {gameState === 'gameover' && ( /* Giữ nguyên UI GameOver */
+
+          <div className="flex-1 flex flex-col animate-in slide-in-from-bottom-4 duration-300 pb-8">
+            <div className="text-center mb-6">
+              <h2 className="text-3xl font-black mt-4 mb-1 text-yellow-500">
+                {maxLevelReached >= 10 ? 'VICTORY!' : 'GAME OVER'}
+              </h2>
+              <p className="text-gray-400">Score: <span className="text-white font-mono">{userFinalScore.toLocaleString()}</span></p>
+            </div>
+
+            <div className="bg-gray-900/50 rounded-2xl border border-gray-800 p-4 mb-4">
+              <div className="flex items-center gap-2 mb-4 text-yellow-500">
+                <Medal size={20} />
+                <h3 className="font-bold uppercase tracking-wider">Global Top 10</h3>
+              </div>
+              {isLoading ? (<div className="flex justify-center py-6"><Loader2 className="animate-spin text-gray-500" /></div>) : (
+                <div className="space-y-3">
+                  {leaderboardData.map((player, idx) => (
+                    <div key={idx} className="flex justify-between items-center bg-black/40 p-3 rounded-xl border border-gray-800/50">
+                      <div className="flex items-center gap-3">
+                        <span className={`font-black w-5 text-center ${idx === 0 ? 'text-yellow-500' : idx === 1 ? 'text-gray-300' : idx === 2 ? 'text-amber-600' : 'text-gray-600'}`}>{idx + 1}</span>
+                        <span className="font-medium truncate max-w-[120px]">{player.first_name}</span>
+                      </div>
+                      <div className="text-right">
+                        <div className="font-mono text-yellow-500 text-sm">{Number(player.best_score).toLocaleString()}</div>
+                        <div className="text-[10px] text-gray-500 uppercase">Lv {player.max_level}</div>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </div>
+
+            {!isLoading && userRank && (
+              <div className="bg-yellow-500 text-black rounded-2xl p-4 mb-6 flex justify-between items-center shadow-[0_0_20px_rgba(234,179,8,0.2)]">
+                <div>
+                  <div className="text-sm font-bold opacity-80 uppercase tracking-wider">Your Global Rank</div>
+                  <div className="text-2xl font-black">#{userRank}</div>
+                </div>
+                <div className="text-right">
+                  <div className="font-bold">{user?.first_name}</div>
+                  <div className="text-sm opacity-80 font-mono">Lv {maxLevelReached}</div>
+                </div>
+              </div>
+            )}
+
+            <div className="space-y-3 mt-auto">
+              <button onClick={startGame} disabled={isLoading} className="w-full bg-gray-800 text-white hover:bg-gray-700 font-bold text-lg py-4 rounded-2xl flex items-center justify-center gap-2 active:scale-95 transition-transform">
+                <RotateCcw size={20} /> PLAY AGAIN
+              </button>
+            </div>
           </div>
         )}
       </main>
