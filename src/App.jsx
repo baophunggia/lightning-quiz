@@ -36,6 +36,7 @@ export default function App() {
   const [isLoading, setIsLoading] = useState(false);
   const [playsToday, setPlaysToday] = useState(0);
   const [currentStreak, setCurrentStreak] = useState(0);
+  const [todayTheme, setTodayTheme] = useState("Loading Theme...");
 
   // Init Telegram WebApp
   useEffect(() => {
@@ -72,6 +73,7 @@ export default function App() {
     };
 
     initApp();
+    loadNewQuestions().then(qs => setQuestionsList(qs));
   }, []);
 
   // Timer
@@ -120,14 +122,21 @@ export default function App() {
     alert("You've used up your turn for today. Come back tomorrow to play again and maintain your winning streak!");
   };
 
+  // Thêm 1 state để lưu chủ đề của ngày hôm nay
+  const [todayTheme, setTodayTheme] = useState("Loading Theme...");
+
   const loadNewQuestions = async () => {
     setIsLoading(true);
     try {
       const res = await fetch('/api/get-questions');
       if (!res.ok) throw new Error();
       const data = await res.json();
-      return data.length >= 10 ? data : MOCK_QUESTIONS;
+
+      setTodayTheme(data.theme || "General");
+
+      return data.questions && data.questions.length >= 10 ? data.questions : MOCK_QUESTIONS;
     } catch {
+      setTodayTheme("General Knowledge");
       return MOCK_QUESTIONS;
     } finally {
       setIsLoading(false);
@@ -271,6 +280,9 @@ export default function App() {
         {/* MENU */}
         {gameState === 'menu' && (
           <div className="flex-1 flex flex-col items-center justify-center text-center">
+            <div className="bg-gray-800/80 border border-gray-700 text-yellow-400 px-4 py-1.5 rounded-full text-sm font-bold tracking-widest uppercase mb-4 shadow-lg">
+              🎯 Today's Theme: {todayTheme}
+            </div>
             <h1 className="text-4xl font-extrabold mt-6 mb-2 uppercase bg-gradient-to-br from-yellow-400 to-yellow-600 bg-clip-text text-transparent">
               ⚡ Beat the Clock.
             </h1>
