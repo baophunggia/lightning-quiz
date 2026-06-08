@@ -101,7 +101,7 @@ export default function App() {
         startTime: gameStartTime
       };
 
-      const res = await fetch('/api/save-score', {
+      const res = await fetch('/api/submit-game', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(payload)
