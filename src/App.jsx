@@ -105,20 +105,19 @@ export default function App() {
           startGame();
         } else {
           // Fallback nếu script adsgram lỗi chặn (adblocker)
-          alert("Không thể tải quảng cáo. Vui lòng tắt Adblock và thử lại.");
+          alert("The ad could not be loaded. Please disable Adblock and try again.");
         }
       } catch (err) {
         // User skip quảng cáo giữa chừng hoặc lỗi mạng
         console.warn("Ad skipped or failed", err);
-        alert("Bạn cần xem hết video để nhận thêm lượt chơi!");
+        alert("Support us by watching the video, you'll get more plays!!");
       } finally {
         setIsLoading(false);
       }
       return;
     }
 
-    // Đã hết 2 lượt
-    alert("Bạn đã hết lượt chơi hôm nay. Hãy quay lại vào ngày mai để chơi tiếp và giữ Streak nhé!");
+    alert("You've used up your turn for today. Come back tomorrow to play again and maintain your winning streak!");
   };
 
   const loadNewQuestions = async () => {
