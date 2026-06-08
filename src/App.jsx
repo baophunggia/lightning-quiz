@@ -369,7 +369,7 @@ export default function App() {
               {isLoading ? (
                 <div className="flex-1 flex flex-col items-center justify-center py-12">
                   <Loader2 className="animate-spin text-yellow-500 mb-4" size={48} />
-                  <p className="text-gray-400">Đang cập nhật bảng xếp hạng...</p>
+                  <p className="text-gray-400">The rankings are being updated...</p>
                 </div>
               ) : leaderboardData.length > 0 ? (
                 <div className="space-y-3 flex-1 overflow-auto pr-2">
