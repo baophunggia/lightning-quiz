@@ -1,73 +1,110 @@
-import React, { useState, useEffect, useCallback } from 'react';
-import { Zap, Timer, Trophy, RotateCcw, Play, Star, Video, Loader2, Medal } from 'lucide-react';
+import React, { useState, useEffect, useRef } from 'react';
+import { Zap, Timer, RotateCcw, Play, Loader2, Medal } from 'lucide-react';
 
 const WebApp = window.Telegram?.WebApp || {
-  initDataUnsafe: { user: null },
+  initDataUnsafe: { user: { first_name: "Player", username: "tester", id: 123456789 } },
   ready: () => { }, expand: () => { },
-  HapticFeedback: { impactOccurred: () => { }, notificationOccurred: () => { } },
-  showAlert: (msg) => alert(msg)
+  HapticFeedback: { impactOccurred: () => { }, notificationOccurred: () => { } }
 };
-
-// Mảng 10 câu hỏi Mock dự phòng khi API lỗi
-const MOCK_QUESTIONS = Array.from({ length: 10 }, (_, i) => ({
-  id: i, q: `Mock Question Level ${i + 1}: What is 1+1?`, a: "2", options: ["1", "2", "3", "4"].sort(() => Math.random() - 0.5)
-}));
 
 export default function App() {
   const [gameState, setGameState] = useState('menu');
-  const [currentLevel, setCurrentLevel] = useState(0);
-  const [maxLevelReached, setMaxLevelReached] = useState(0);
   const [timeLeft, setTimeLeft] = useState(60);
 
-  const [questionsList, setQuestionsList] = useState([]); // <--- Lưu trữ cả 10 câu
-  const [feedback, setFeedback] = useState(null);
-  const [user, setUser] = useState(null);
-  const [userStars, setUserStars] = useState(0);
+  const [questionsList, setQuestionsList] = useState([]);
+  const [qIndex, setQIndex] = useState(0); // Con trỏ đang trỏ tới câu nào trong mảng 30 câu
 
-  const [gameStartTime, setGameStartTime] = useState(0);
+  const [currentStreak, setCurrentStreak] = useState(0);
+  const [maxStreak, setMaxStreak] = useState(0);
+
+  const [feedback, setFeedback] = useState(null);
+  const [isLoading, setIsLoading] = useState(false);
+
+  // Dùng useRef để lưu log vì nó thay đổi liên tục, tránh re-render không cần thiết
+  const actionLogs = useRef([]);
+  const gameStartTime = useRef(0);
+
   const [leaderboardData, setLeaderboardData] = useState([]);
   const [userRank, setUserRank] = useState(null);
   const [userFinalScore, setUserFinalScore] = useState(0);
 
-  const [isLoading, setIsLoading] = useState(false);
-  const [isWatchingAd, setIsWatchingAd] = useState(false);
+  const user = WebApp.initDataUnsafe?.user;
 
-  useEffect(() => {
-    if (WebApp.initDataUnsafe?.user) {
-      setUser(WebApp.initDataUnsafe.user);
-      WebApp.ready(); WebApp.expand();
-    } else {
-      setUser({ first_name: "Player", username: "tester", id: 123456789 });
-    }
-  }, []);
-
+  // Xử lý đếm ngược độc lập
   useEffect(() => {
     let timer;
-    if (gameState === 'playing' && timeLeft > 0) {
+    if (gameState === 'playing' && timeLeft > 0 && maxStreak < 10) {
       timer = setInterval(() => setTimeLeft(prev => prev - 1), 1000);
-    } else if (timeLeft === 0 && gameState === 'playing') {
-      endGame(currentLevel);
+    } else if ((timeLeft === 0 || maxStreak >= 10) && gameState === 'playing') {
+      endGame();
     }
     return () => clearInterval(timer);
-  }, [gameState, timeLeft, currentLevel]);
+  }, [gameState, timeLeft, maxStreak]);
 
-  const saveScore = async (finalLevel) => {
+  const startGame = async () => {
     setIsLoading(true);
     try {
-      const timeTakenMs = Date.now() - gameStartTime;
-      const timeRemainingMs = Math.max(0, 60000 - timeTakenMs);
-      const calculatedScore = (finalLevel * 10000) + timeRemainingMs;
-      setUserFinalScore(calculatedScore);
+      const res = await fetch('/api/get-questions');
+      const data = await res.json();
+      setQuestionsList(data);
+    } catch (err) {
+      console.error("Lỗi lấy câu hỏi");
+    } finally {
+      setIsLoading(false);
+      setQIndex(0);
+      setCurrentStreak(0);
+      setMaxStreak(0);
+      setTimeLeft(60);
+      actionLogs.current = []; // Xóa log cũ
+      gameStartTime.current = Date.now();
+      setGameState('playing');
+    }
+  };
 
+  const handleAnswer = (selectedAns) => {
+    if (feedback !== null || !currentQ) return;
+
+    const isCorrect = selectedAns === currentQ.a;
+    setFeedback({ selected: selectedAns, isCorrect });
+
+    // Ghi log hành động để gửi cho Server kiểm duyệt
+    actionLogs.current.push({
+      questionId: currentQ.id,
+      selectedAns: selectedAns,
+      timestamp: Date.now()
+    });
+
+    if (isCorrect) {
+      if (WebApp.HapticFeedback) WebApp.HapticFeedback.impactOccurred('light');
+      const newStreak = currentStreak + 1;
+      setCurrentStreak(newStreak);
+      if (newStreak > maxStreak) setMaxStreak(newStreak);
+    } else {
+      if (WebApp.HapticFeedback) WebApp.HapticFeedback.notificationOccurred('error');
+      setCurrentStreak(0); // Trả lời sai -> Rớt chuỗi về 0
+    }
+
+    // Chuyển sang câu tiếp theo trong mảng sau 500ms
+    setTimeout(() => {
+      setFeedback(null);
+      setQIndex(prev => prev + 1);
+    }, 500);
+  };
+
+  const endGame = async () => {
+    setGameState('gameover');
+    setIsLoading(true);
+
+    try {
       const payload = {
-        telegram_id: user?.id || 123456789,
+        telegram_id: user?.id,
         username: user?.username || 'unknown',
         first_name: user?.first_name || 'Player',
-        max_level: finalLevel,
-        best_score: calculatedScore
+        logs: actionLogs.current,
+        startTime: gameStartTime.current
       };
 
-      const res = await fetch('/api/save-score', {
+      const res = await fetch('/api/submit-game', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(payload)
@@ -77,6 +114,7 @@ export default function App() {
         const data = await res.json();
         setLeaderboardData(data.leaderboard || []);
         setUserRank(data.user_rank);
+        setUserFinalScore(data.final_score);
       }
     } catch (err) {
       console.error("Lỗi lưu điểm:", err);
@@ -85,77 +123,17 @@ export default function App() {
     }
   };
 
-  const startGame = async () => {
-    setIsLoading(true);
-    try {
-      // Gọi 1 lần duy nhất lấy 10 câu
-      const res = await fetch('/api/get-questions');
-      if (!res.ok) throw new Error("API error");
-      const data = await res.json();
-      setQuestionsList(data.length >= 10 ? data : MOCK_QUESTIONS);
-    } catch (err) {
-      console.warn("Dùng MOCK data do lỗi mạng");
-      setQuestionsList(MOCK_QUESTIONS);
-    } finally {
-      setIsLoading(false);
-      setCurrentLevel(1);
-      setMaxLevelReached(0);
-      setTimeLeft(60);
-      setFeedback(null);
-      setLeaderboardData([]);
-      setUserRank(null);
-      setGameState('playing');
-      setGameStartTime(Date.now());
-    }
-  };
+  const currentQ = questionsList[qIndex];
 
-  const endGame = async (finalLevel) => {
-    setGameState('gameover');
-    if (WebApp.HapticFeedback) WebApp.HapticFeedback.notificationOccurred('warning');
-    await saveScore(finalLevel);
-  };
-
-  // Câu hỏi hiện tại (Render trực tiếp từ RAM, không fetch)
-  const currentQ = questionsList[currentLevel - 1];
-
-  const handleAnswer = async (selectedAns) => {
-    if (feedback !== null || !currentQ) return;
-
-    const isCorrect = selectedAns === currentQ.a;
-    setFeedback({ selected: selectedAns, isCorrect });
-
-    if (isCorrect) {
-      if (WebApp.HapticFeedback) WebApp.HapticFeedback.impactOccurred('light');
-      setTimeout(() => {
-        const nextLevel = currentLevel + 1;
-        setCurrentLevel(nextLevel);
-        if (nextLevel > maxLevelReached) setMaxLevelReached(nextLevel);
-
-        if (nextLevel > 10) {
-          endGame(10);
-        } else {
-          setFeedback(null); // Chỉ reset feedback, UI tự động cập nhật câu mới lập tức
-        }
-      }, 500); // Giảm delay xuống 500ms cho mượt hơn
-    } else {
-      if (WebApp.HapticFeedback) WebApp.HapticFeedback.notificationOccurred('error');
-      setTimeout(() => {
-        setFeedback(null);
-        endGame(currentLevel - 1);
-      }, 1000);
-    }
-  };
-
-  const handleWatchAd = async () => { /* Giữ nguyên logic AdsGram */ };
-
+  // Component hiển thị thang điểm hiện tại
   const LevelLadder = () => (
     <div className="w-16 bg-gray-900/50 rounded-xl p-2 flex flex-col-reverse justify-between border border-gray-800">
       {[...Array(10)].map((_, i) => {
         const level = i + 1;
-        const isCurrent = level === currentLevel;
-        const isPassed = level < currentLevel;
+        const isCurrent = level === (currentStreak + 1); // Đang đứng ở bậc chuẩn bị trả lời
+        const isPassed = level <= currentStreak;
         return (
-          <div key={level} className={`flex items-center justify-center h-8 text-sm font-bold rounded-lg transition-all ${isCurrent ? 'bg-yellow-500 text-black scale-110 shadow-[0_0_10px_rgba(234,179,8,0.5)]' : isPassed ? 'bg-green-500/20 text-green-400' : 'text-gray-500'}`}>
+          <div key={level} className={`flex items-center justify-center h-8 text-sm font-bold rounded-lg transition-all ${isCurrent ? 'bg-yellow-500 text-black scale-110' : isPassed ? 'bg-green-500/20 text-green-400' : 'text-gray-500'}`}>
             {level}
           </div>
         );
@@ -193,8 +171,8 @@ export default function App() {
             <div className="flex-1 flex flex-col relative">
               <div className="flex justify-between items-center bg-gray-900 rounded-2xl p-4 border border-gray-800 mb-4">
                 <div className="flex flex-col">
-                  <span className="text-xs text-gray-500 uppercase font-bold tracking-wider">Level</span>
-                  <span className="text-2xl font-black text-yellow-500">{currentLevel}/10</span>
+                  <span className="text-xs text-gray-500 uppercase font-bold tracking-wider">Kỷ lục hiện tại</span>
+                  <span className="text-2xl font-black text-yellow-500">{maxStreak}/10</span>
                 </div>
                 <div className="flex items-center gap-2">
                   <Timer size={20} className={timeLeft <= 10 ? 'text-red-500 animate-pulse' : 'text-gray-400'} />

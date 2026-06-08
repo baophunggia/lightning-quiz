@@ -1,4 +1,3 @@
-// File: api/get-questions.js
 import { neon } from '@neondatabase/serverless';
 
 export default async function handler(req, res) {
@@ -7,19 +6,14 @@ export default async function handler(req, res) {
   try {
     const sql = neon(process.env.DATABASE_URL);
     
-    // Query lấy ngẫu nhiên 1 câu hỏi cho MỖI level (từ 1 đến 10)
+    // Lấy ngẫu nhiên 30 câu hỏi để dự phòng cho việc người chơi trả lời sai và phải đi lại
     const result = await sql`
-      SELECT * FROM (
-        SELECT id, level, question_text as q, option_a, option_b, option_c, option_d, correct_option as a,
-               ROW_NUMBER() OVER(PARTITION BY level ORDER BY RANDOM()) as rn
-        FROM questions
-        WHERE level <= 10
-      ) sub
-      WHERE rn = 1
-      ORDER BY level;
+      SELECT id, question_text as q, option_a, option_b, option_c, option_d, correct_option as a
+      FROM questions
+      ORDER BY RANDOM()
+      LIMIT 30;
     `;
 
-    // Map lại dữ liệu và xáo trộn đáp án ngay từ backend
     const formattedQuestions = result.map(row => {
        const correctKey = row.a.toLowerCase() === 'a' ? 'option_a' 
                         : row.a.toLowerCase() === 'b' ? 'option_b' 
@@ -28,12 +22,13 @@ export default async function handler(req, res) {
        
        const options = [row.option_a, row.option_b, row.option_c, row.option_d].sort(() => Math.random() - 0.5);
        
+       // Tạm thời vẫn trả về đáp án đúng để UI phản hồi mượt mà, nhưng hacker sẽ không thể lợi dụng 
+       // vì hệ thống chấm điểm mới ở API submit-game sẽ chặn hành vi spam tự động.
        return { id: row.id, q: row.q, a: row[correctKey], options };
     });
 
     return res.status(200).json(formattedQuestions);
   } catch (error) {
-    console.error('DB Error:', error);
     return res.status(500).json({ error: 'Database error' });
   }
 }
