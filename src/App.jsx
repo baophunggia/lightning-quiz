@@ -263,7 +263,7 @@ export default function App() {
           <div className="bg-yellow-500 p-1.5 rounded-lg">
             <Zap size={20} className="text-black" />
           </div>
-          <span className="font-bold text-lg tracking-tight">Lightning Trivia</span>
+          <span className="font-bold text-lg tracking-tight">Lightning 10</span>
         </div>
       </header>
 
@@ -272,9 +272,9 @@ export default function App() {
         {gameState === 'menu' && (
           <div className="flex-1 flex flex-col items-center justify-center text-center">
             <h1 className="text-4xl font-extrabold mt-6 mb-2 uppercase bg-gradient-to-br from-yellow-400 to-yellow-600 bg-clip-text text-transparent">
-              Reach Level 10
+              ⚡ Beat the Clock.
             </h1>
-            <p className="text-gray-400 mb-8 px-4">Answer 10 questions correctly in a row.<br />Fast answers get higher ranks!</p>
+            <p className="text-gray-400 mb-8 px-4">Hit 10..</p>
             <button
               onClick={handlePlayClick}
               disabled={isLoading || playsToday >= 2}
@@ -344,7 +344,7 @@ export default function App() {
               <p className="text-3xl mt-3 font-mono text-white">
                 {userFinalScore.toLocaleString()}
               </p>
-              <p className="text-sm text-gray-500">điểm trận này</p>
+              <p className="text-sm text-gray-500">Point</p>
             </div>
 
             {/* Leaderboard */}
@@ -391,7 +391,7 @@ export default function App() {
                 </div>
               ) : (
                 <div className="flex-1 flex items-center justify-center text-gray-500 py-10">
-                  Không có dữ liệu
+                  No data
                 </div>
               )}
             </div>
@@ -400,7 +400,7 @@ export default function App() {
               <div className="bg-gradient-to-r from-yellow-500 to-amber-500 text-black rounded-3xl p-6 mb-6 shadow-xl">
                 <div className="flex items-center justify-between">
                   <div>
-                    <div className="uppercase text-xs font-bold tracking-widest opacity-75">XẾP HẠNG CỦA BẠN</div>
+                    <div className="uppercase text-xs font-bold tracking-widest opacity-75">YOUR RATING</div>
                     <div className="text-5xl font-black">#{userRank}</div>
                   </div>
                   <div className="text-right">
@@ -416,7 +416,7 @@ export default function App() {
               disabled={isLoading}
               className="w-full bg-white text-black font-bold py-5 rounded-3xl flex items-center justify-center gap-3 text-lg active:scale-95 transition-all disabled:opacity-70 mt-auto"
             >
-              <RotateCcw size={22} /> CHƠI LẠI
+              <RotateCcw size={22} /> REPLAY
             </button>
           </div>
         )}
