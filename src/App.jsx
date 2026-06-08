@@ -1,15 +1,14 @@
 import React, { useState, useEffect } from 'react';
-import { Zap, Timer, Trophy, RotateCcw, Play, Loader2, Medal } from 'lucide-react';
+import { Zap, Timer, RotateCcw, Play, Loader2, Medal } from 'lucide-react';
 
 const WebApp = window.Telegram?.WebApp || {
   initDataUnsafe: { user: null },
-  ready: () => { },
-  expand: () => { },
-  HapticFeedback: { impactOccurred: () => { }, notificationOccurred: () => { } },
+  ready: () => {}, 
+  expand: () => {},
+  HapticFeedback: { impactOccurred: () => {}, notificationOccurred: () => {} },
   showAlert: (msg) => alert(msg)
 };
 
-// Mock Questions
 const MOCK_QUESTIONS = Array.from({ length: 10 }, (_, i) => ({
   id: i,
   q: `Mock Question Level ${i + 1}: What is 1+1?`,
@@ -27,13 +26,16 @@ export default function App() {
   const [feedback, setFeedback] = useState(null);
   const [user, setUser] = useState(null);
 
+  const [logs, setLogs] = useState([]);           // ← Mới: lưu lịch sử trả lời
   const [gameStartTime, setGameStartTime] = useState(0);
+
   const [leaderboardData, setLeaderboardData] = useState([]);
   const [userRank, setUserRank] = useState(null);
   const [userFinalScore, setUserFinalScore] = useState(0);
 
   const [isLoading, setIsLoading] = useState(false);
 
+  // Init Telegram WebApp
   useEffect(() => {
     if (WebApp.initDataUnsafe?.user) {
       setUser(WebApp.initDataUnsafe.user);
@@ -48,30 +50,55 @@ export default function App() {
   useEffect(() => {
     let timer;
     if (gameState === 'playing' && timeLeft > 0) {
-      timer = setInterval(() => {
-        setTimeLeft(prev => prev - 1);
-      }, 1000);
+      timer = setInterval(() => setTimeLeft(prev => prev - 1), 1000);
     } else if (timeLeft === 0 && gameState === 'playing') {
-      endGame(currentLevel);
+      endGame();
     }
     return () => clearInterval(timer);
-  }, [gameState, timeLeft, currentLevel]);
+  }, [gameState, timeLeft]);
 
-  const saveScore = async (finalLevel) => {
+  const loadNewQuestions = async () => {
     setIsLoading(true);
     try {
-      const timeTakenMs = Date.now() - gameStartTime;
-      const timeRemainingMs = Math.max(0, 60000 - timeTakenMs);
-      const calculatedScore = (finalLevel * 10000) + timeRemainingMs;
+      const res = await fetch('/api/get-questions');
+      if (!res.ok) throw new Error();
+      const data = await res.json();
+      return data.length >= 10 ? data : MOCK_QUESTIONS;
+    } catch {
+      return MOCK_QUESTIONS;
+    } finally {
+      setIsLoading(false);
+    }
+  };
 
-      setUserFinalScore(calculatedScore);
+  const startGame = async () => {
+    const newQuestions = await loadNewQuestions();
 
+    setQuestionsList(newQuestions);
+    setCurrentLevel(1);
+    setMaxLevelReached(0);
+    setTimeLeft(60);
+    setFeedback(null);
+    setLogs([]);                    // Reset logs khi bắt đầu game mới
+    setLeaderboardData([]);
+    setUserRank(null);
+    setGameState('playing');
+    setGameStartTime(Date.now());
+  };
+
+  const endGame = async () => {
+    setGameState('gameover');
+    if (WebApp.HapticFeedback) WebApp.HapticFeedback.notificationOccurred('warning');
+
+    const finalLevel = maxLevelReached;
+
+    try {
       const payload = {
         telegram_id: user?.id || 123456789,
         username: user?.username || 'unknown',
         first_name: user?.first_name || 'Player',
-        max_level: finalLevel,
-        best_score: calculatedScore
+        logs: logs,
+        startTime: gameStartTime
       };
 
       const res = await fetch('/api/save-score', {
@@ -82,51 +109,13 @@ export default function App() {
 
       if (res.ok) {
         const data = await res.json();
+        setUserFinalScore(data.final_score || finalLevel * 10000);
         setLeaderboardData(data.leaderboard || []);
         setUserRank(data.user_rank);
-      } else {
-        console.error("Save score failed");
       }
     } catch (err) {
-      console.error("Lỗi lưu điểm:", err);
-    } finally {
-      setIsLoading(false);
+      console.error("Lỗi submit điểm:", err);
     }
-  };
-
-  const loadNewQuestions = async () => {
-    try {
-      const res = await fetch('/api/get-questions');
-      if (res.ok) {
-        const data = await res.json();
-        return data.length >= 10 ? data : MOCK_QUESTIONS;
-      }
-    } catch (err) {
-      console.warn("Dùng mock questions");
-    }
-    return MOCK_QUESTIONS;
-  };
-
-  const startGame = async () => {
-    setIsLoading(true);
-    const newQuestions = await loadNewQuestions();
-
-    setQuestionsList(newQuestions);
-    setCurrentLevel(1);
-    setMaxLevelReached(0);
-    setTimeLeft(60);
-    setFeedback(null);
-    setLeaderboardData([]);
-    setUserRank(null);
-    setGameState('playing');
-    setGameStartTime(Date.now());
-    setIsLoading(false);
-  };
-
-  const endGame = async (finalLevel) => {
-    setGameState('gameover');
-    if (WebApp.HapticFeedback) WebApp.HapticFeedback.notificationOccurred('warning');
-    await saveScore(finalLevel);
   };
 
   const currentQ = questionsList[currentLevel - 1];
@@ -134,7 +123,16 @@ export default function App() {
   const handleAnswer = async (selectedAns) => {
     if (feedback || !currentQ) return;
 
+    const timestamp = Date.now();
     const isCorrect = selectedAns === currentQ.a;
+
+    // Ghi log ngay lập tức
+    setLogs(prev => [...prev, {
+      questionId: currentQ.id,
+      selectedAns,
+      timestamp
+    }]);
+
     setFeedback({ selected: selectedAns, isCorrect });
 
     if (isCorrect) {
@@ -146,7 +144,7 @@ export default function App() {
         if (nextLevel > maxLevelReached) setMaxLevelReached(nextLevel);
 
         if (nextLevel > 10) {
-          endGame(10);
+          endGame();
         } else {
           setFeedback(null);
         }
@@ -161,8 +159,8 @@ export default function App() {
         const newQuestions = await loadNewQuestions();
         setQuestionsList(newQuestions);
         setCurrentLevel(1);
-        setMaxLevelReached(Math.max(maxLevelReached, 1)); // Giữ max level đã đạt
-      }, 800);
+        // maxLevelReached giữ nguyên (để hiển thị thành tích cao nhất)
+      }, 900);
     }
   };
 
@@ -175,12 +173,11 @@ export default function App() {
         return (
           <div
             key={level}
-            className={`flex items-center justify-center h-8 text-sm font-bold rounded-lg transition-all ${isCurrent
-                ? 'bg-yellow-500 text-black scale-110 shadow-[0_0_10px_rgba(234,179,8,0.5)]'
-                : isPassed
-                  ? 'bg-green-500/20 text-green-400'
-                  : 'text-gray-500'
-              }`}
+            className={`flex items-center justify-center h-8 text-sm font-bold rounded-lg transition-all ${
+              isCurrent ? 'bg-yellow-500 text-black scale-110 shadow-[0_0_10px_rgba(234,179,8,0.5)]' 
+                       : isPassed ? 'bg-green-500/20 text-green-400' 
+                       : 'text-gray-500'
+            }`}
           >
             {level}
           </div>
@@ -194,20 +191,20 @@ export default function App() {
       <header className="flex justify-between items-center p-4 border-b border-gray-800 bg-black/80 backdrop-blur sticky top-0 z-10">
         <div className="flex items-center gap-2">
           <div className="bg-yellow-500 p-1.5 rounded-lg">
-            <Zap size={20} className="text-black fill-current" />
+            <Zap size={20} className="text-black" />
           </div>
           <span className="font-bold text-lg tracking-tight">Lightning Trivia</span>
         </div>
       </header>
 
-      <main className="flex-1 flex flex-col p-4 max-w-md mx-auto w-full relative">
-        {/* Menu */}
+      <main className="flex-1 flex flex-col p-4 max-w-md mx-auto w-full">
+        {/* MENU */}
         {gameState === 'menu' && (
           <div className="flex-1 flex flex-col items-center justify-center text-center">
-            <h1 className="text-4xl font-extrabold mt-6 mb-2 uppercase text-transparent bg-clip-text bg-gradient-to-br from-yellow-400 to-yellow-600">
+            <h1 className="text-4xl font-extrabold mt-6 mb-2 uppercase bg-gradient-to-br from-yellow-400 to-yellow-600 bg-clip-text text-transparent">
               Reach Level 10
             </h1>
-            <p className="text-gray-400 mb-8 px-4">Answer 10 questions correctly in a row.<br />Fast answers = Higher ranks!</p>
+            <p className="text-gray-400 mb-8 px-4">Answer 10 questions correctly in a row.<br />Fast answers get higher ranks!</p>
             <button
               onClick={startGame}
               disabled={isLoading}
@@ -219,7 +216,7 @@ export default function App() {
           </div>
         )}
 
-        {/* Playing */}
+        {/* PLAYING */}
         {gameState === 'playing' && currentQ && (
           <div className="flex-1 flex gap-4">
             <LevelLadder />
@@ -243,7 +240,7 @@ export default function App() {
                 {currentQ.options.map((opt, idx) => {
                   let btnStyle = "bg-gray-900 border-gray-800 text-white hover:bg-gray-800";
                   if (feedback) {
-                    if (opt === currentQ.a) btnStyle = "bg-green-500 border-green-400 text-black";
+                    if (opt === currentQ.a) btnStyle = "bg-green-500 border-green-400 text-black font-bold";
                     else if (feedback.selected === opt) btnStyle = "bg-red-900/70 border-red-800 text-gray-400";
                     else btnStyle = "opacity-50";
                   }
@@ -263,30 +260,31 @@ export default function App() {
           </div>
         )}
 
-        {/* Game Over */}
+        {/* GAME OVER */}
         {gameState === 'gameover' && (
           <div className="flex-1 flex flex-col pb-8">
-            <div className="text-center mb-8 mt-6">
-              <h2 className="text-4xl font-black text-yellow-500 mb-2">
+            <div className="text-center mt-8 mb-8">
+              <h2 className="text-4xl font-black text-yellow-500">
                 {maxLevelReached >= 10 ? 'VICTORY!' : 'GAME OVER'}
               </h2>
-              <p className="text-2xl text-gray-400">
+              <p className="text-2xl mt-2 text-gray-400">
                 Score: <span className="font-mono text-white">{userFinalScore.toLocaleString()}</span>
               </p>
             </div>
 
-            {/* Leaderboard giữ nguyên như cũ */}
             <div className="bg-gray-900/50 rounded-2xl border border-gray-800 p-4 mb-6 flex-1 overflow-auto">
-              {/* ... giữ nguyên phần leaderboard ... */}
-              {isLoading ? (
-                <div className="flex justify-center py-12"><Loader2 className="animate-spin" /></div>
-              ) : (
+              <div className="flex items-center gap-2 mb-4 text-yellow-500">
+                <Medal size={22} />
+                <h3 className="font-bold uppercase tracking-wider">Global Top 10</h3>
+              </div>
+
+              {leaderboardData.length > 0 ? (
                 <div className="space-y-3">
                   {leaderboardData.map((player, idx) => (
-                    <div key={idx} className="flex justify-between items-center bg-black/40 p-3 rounded-xl">
+                    <div key={idx} className="flex justify-between items-center bg-black/40 p-3 rounded-xl border border-gray-800/50">
                       <div className="flex items-center gap-3">
-                        <span className="font-black w-6">{idx + 1}</span>
-                        <span>{player.first_name}</span>
+                        <span className="font-black w-6 text-center">{idx + 1}</span>
+                        <span className="truncate">{player.first_name}</span>
                       </div>
                       <div className="text-right">
                         <div className="font-mono text-yellow-500">{Number(player.best_score).toLocaleString()}</div>
@@ -295,13 +293,14 @@ export default function App() {
                     </div>
                   ))}
                 </div>
+              ) : (
+                <p className="text-center text-gray-500 py-8">No leaderboard data</p>
               )}
             </div>
 
             <button
               onClick={startGame}
-              disabled={isLoading}
-              className="w-full bg-gray-800 hover:bg-gray-700 font-bold py-4 rounded-2xl flex items-center justify-center gap-2 mt-auto"
+              className="w-full bg-gray-800 hover:bg-gray-700 font-bold py-4 rounded-2xl flex items-center justify-center gap-2 mt-auto active:scale-95"
             >
               <RotateCcw size={20} /> PLAY AGAIN
             </button>
