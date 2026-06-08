@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useCallback } from 'react';
+import React, { useState, useEffect, useCallback, useRef } from 'react';
 import { Zap, Timer, RotateCcw, Play, Star, Loader2, Medal } from 'lucide-react';
 
 const WebApp = window.Telegram?.WebApp || {
