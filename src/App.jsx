@@ -62,7 +62,7 @@ export default function App() {
             setMaxLevelReached(data.max_level || 0);
           }
         } catch (err) {
-          console.error("Lỗi đồng bộ thông tin ban đầu:", err);
+          console.error("Initial data synchronization error:", err);
         }
       } else {
         // Dữ liệu giả lập khi bạn chạy thử trên trình duyệt máy tính bình thường
