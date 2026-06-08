@@ -3,9 +3,9 @@ import { Zap, Timer, RotateCcw, Play, Loader2, Medal } from 'lucide-react';
 
 const WebApp = window.Telegram?.WebApp || {
   initDataUnsafe: { user: null },
-  ready: () => {}, 
-  expand: () => {},
-  HapticFeedback: { impactOccurred: () => {}, notificationOccurred: () => {} },
+  ready: () => { },
+  expand: () => { },
+  HapticFeedback: { impactOccurred: () => { }, notificationOccurred: () => { } },
   showAlert: (msg) => alert(msg)
 };
 
@@ -91,6 +91,10 @@ export default function App() {
     if (WebApp.HapticFeedback) WebApp.HapticFeedback.notificationOccurred('warning');
 
     const finalLevel = maxLevelReached;
+    const calculatedScore = finalLevel * 10000;
+    setUserFinalScore(calculatedScore);   // Hiển thị điểm ngay lập tức
+
+    setIsLoading(true);   // Bật loading cho leaderboard
 
     try {
       const payload = {
@@ -109,12 +113,14 @@ export default function App() {
 
       if (res.ok) {
         const data = await res.json();
-        setUserFinalScore(data.final_score || finalLevel * 10000);
+        setUserFinalScore(data.final_score || calculatedScore);
         setLeaderboardData(data.leaderboard || []);
         setUserRank(data.user_rank);
       }
     } catch (err) {
-      console.error("Lỗi submit điểm:", err);
+      console.error("Lỗi submit:", err);
+    } finally {
+      setIsLoading(false);
     }
   };
 
@@ -173,11 +179,10 @@ export default function App() {
         return (
           <div
             key={level}
-            className={`flex items-center justify-center h-8 text-sm font-bold rounded-lg transition-all ${
-              isCurrent ? 'bg-yellow-500 text-black scale-110 shadow-[0_0_10px_rgba(234,179,8,0.5)]' 
-                       : isPassed ? 'bg-green-500/20 text-green-400' 
-                       : 'text-gray-500'
-            }`}
+            className={`flex items-center justify-center h-8 text-sm font-bold rounded-lg transition-all ${isCurrent ? 'bg-yellow-500 text-black scale-110 shadow-[0_0_10px_rgba(234,179,8,0.5)]'
+              : isPassed ? 'bg-green-500/20 text-green-400'
+                : 'text-gray-500'
+              }`}
           >
             {level}
           </div>
@@ -261,48 +266,76 @@ export default function App() {
         )}
 
         {/* GAME OVER */}
+        {/* ==================== GAME OVER ==================== */}
         {gameState === 'gameover' && (
           <div className="flex-1 flex flex-col pb-8">
             <div className="text-center mt-8 mb-8">
               <h2 className="text-4xl font-black text-yellow-500">
                 {maxLevelReached >= 10 ? 'VICTORY!' : 'GAME OVER'}
               </h2>
-              <p className="text-2xl mt-2 text-gray-400">
-                Score: <span className="font-mono text-white">{userFinalScore.toLocaleString()}</span>
+
+              <p className="text-3xl mt-3 font-mono text-white">
+                {userFinalScore.toLocaleString()}
               </p>
+              <p className="text-sm text-gray-500">điểm trận này</p>
             </div>
 
-            <div className="bg-gray-900/50 rounded-2xl border border-gray-800 p-4 mb-6 flex-1 overflow-auto">
-              <div className="flex items-center gap-2 mb-4 text-yellow-500">
-                <Medal size={22} />
-                <h3 className="font-bold uppercase tracking-wider">Global Top 10</h3>
+            {/* Leaderboard Section */}
+            <div className="bg-gray-900/50 rounded-3xl border border-gray-800 p-5 mb-6 flex-1 flex flex-col">
+              <div className="flex items-center gap-3 mb-5 text-yellow-500">
+                <Medal size={26} />
+                <h3 className="font-bold uppercase tracking-wider text-lg">Global Top 10</h3>
               </div>
 
-              {leaderboardData.length > 0 ? (
-                <div className="space-y-3">
-                  {leaderboardData.map((player, idx) => (
-                    <div key={idx} className="flex justify-between items-center bg-black/40 p-3 rounded-xl border border-gray-800/50">
-                      <div className="flex items-center gap-3">
-                        <span className="font-black w-6 text-center">{idx + 1}</span>
-                        <span className="truncate">{player.first_name}</span>
+              {isLoading ? (
+                <div className="flex-1 flex flex-col items-center justify-center py-12">
+                  <Loader2 className="animate-spin text-yellow-500 mb-4" size={48} />
+                  <p className="text-gray-400">Đang tính điểm & cập nhật bảng xếp hạng...</p>
+                  <p className="text-xs text-gray-600 mt-2">Vui lòng chờ trong giây lát</p>
+                </div>
+              ) : leaderboardData.length > 0 ? (
+                <div className="space-y-3 flex-1 overflow-auto pr-2">
+                  {leaderboardData.map((player, idx) => {
+                    const isCurrentUser = player.first_name === user?.first_name;
+                    return (
+                      <div
+                        key={idx}
+                        className={`flex justify-between items-center bg-black/60 p-4 rounded-2xl border transition-all ${isCurrentUser
+                            ? 'border-yellow-500 bg-yellow-500/10 ring-1 ring-yellow-500'
+                            : 'border-gray-800'
+                          }`}
+                      >
+                        <div className="flex items-center gap-4">
+                          <span className={`font-black text-xl w-8 text-center ${idx === 0 ? 'text-yellow-400' : ''}`}>
+                            {idx + 1}
+                          </span>
+                          <span className={`font-medium ${isCurrentUser ? 'text-yellow-400' : ''}`}>
+                            {player.first_name}
+                          </span>
+                        </div>
+                        <div className="text-right">
+                          <div className="font-mono text-yellow-400 text-lg font-semibold">
+                            {Number(player.best_score).toLocaleString()}
+                          </div>
+                          <div className="text-xs text-gray-500">Level {player.max_level}</div>
+                        </div>
                       </div>
-                      <div className="text-right">
-                        <div className="font-mono text-yellow-500">{Number(player.best_score).toLocaleString()}</div>
-                        <div className="text-xs text-gray-500">Lv {player.max_level}</div>
-                      </div>
-                    </div>
-                  ))}
+                    );
+                  })}
                 </div>
               ) : (
-                <p className="text-center text-gray-500 py-8">No leaderboard data</p>
+                <div className="flex-1 flex items-center justify-center text-gray-500">
+                  Không có dữ liệu bảng xếp hạng
+                </div>
               )}
             </div>
 
             <button
               onClick={startGame}
-              className="w-full bg-gray-800 hover:bg-gray-700 font-bold py-4 rounded-2xl flex items-center justify-center gap-2 mt-auto active:scale-95"
+              disabled={isLoading}
+              className="w-full bg-white text-black font-bold py-5 rounded-3xl flex items-center justify-center gap-3 text-lg active:scale-95 transition-all disabled:opacity-70"
             >
-              <RotateCcw size={20} /> PLAY AGAIN
+              <RotateCcw size={22} /> CHƠI LẠI
             </button>
           </div>
         )}
