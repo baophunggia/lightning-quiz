@@ -13,9 +13,15 @@ export default async function handler(req, res) {
   try {
     const sql = neon(process.env.DATABASE_URL);
 
-    // 1. CHỐNG GIAN LẬN: Kiểm tra thời gian chơi có hợp lý không (Quá 65s là gian lận)
-    const playDuration = Date.now() - startTime;
-    if (playDuration > 65000) {
+    // 1. FIX CHỐNG GIAN LẬN: Chỉ dùng thời gian nội bộ của Client để tránh lệch giờ máy chủ
+    let clientPlayDuration = 0;
+    if (logs.length > 0) {
+      // Lấy thời gian lúc trả lời câu cuối trừ đi lúc bắt đầu
+      clientPlayDuration = logs[logs.length - 1].timestamp - startTime;
+    }
+
+    // Cho phép tối đa 70s (60s chơi + 10s bù trừ độ trễ mạng/chuyển câu hỏi)
+    if (clientPlayDuration > 70000) {
       return res.status(400).json({ error: "Time manipulation detected" });
     }
 
@@ -31,13 +37,10 @@ export default async function handler(req, res) {
 
       dbQuestions.forEach((q) => {
         const key =
-          q.correct_option.toLowerCase() === "a"
-            ? "option_a"
-            : q.correct_option.toLowerCase() === "b"
-              ? "option_b"
-              : q.correct_option.toLowerCase() === "c"
-                ? "option_c"
-                : "option_d";
+          q.correct_option.toLowerCase() === "a" ? "option_a"
+            : q.correct_option.toLowerCase() === "b" ? "option_b"
+            : q.correct_option.toLowerCase() === "c" ? "option_c"
+            : "option_d";
         correctAnswers[q.id] = q[key];
       });
     }
@@ -63,17 +66,17 @@ export default async function handler(req, res) {
       lastClickTime = log.timestamp;
     }
 
-    const finalScore = maxStreak * 10000; // Có thể cộng thêm bonus time nếu maxStreak = 10
+    const finalScore = maxStreak * 10000;
 
-    // 4. Lưu dữ liệu an toàn xuống DB
+    // 4. FIX DB: Đã thêm last_played vào INSERT
     await sql`
       INSERT INTO users (
         telegram_id, username, first_name, max_level, best_score, games_played, 
-        last_play_date, plays_today, current_streak
+        last_play_date, plays_today, current_streak, last_played
       )
       VALUES (
         ${telegram_id}, ${username}, ${first_name}, ${maxStreak}, ${finalScore}, 1, 
-        CURRENT_DATE, 1, 1
+        CURRENT_DATE, 1, 1, CURRENT_TIMESTAMP
       )
       ON CONFLICT (telegram_id) DO UPDATE SET
         username = EXCLUDED.username,
@@ -91,8 +94,8 @@ export default async function handler(req, res) {
         -- Tính toán Streak
         current_streak = CASE 
                            WHEN users.last_play_date = CURRENT_DATE - INTERVAL '1 day' THEN users.current_streak + 1
-                           WHEN users.last_play_date = CURRENT_DATE THEN users.current_streak -- Đã tính streak hôm nay rồi
-                           ELSE 1 -- Bỏ lỡ ngày, reset streak về 1
+                           WHEN users.last_play_date = CURRENT_DATE THEN users.current_streak 
+                           ELSE 1 
                          END,
                          
         last_play_date = CURRENT_DATE,
@@ -100,13 +103,28 @@ export default async function handler(req, res) {
     `;
 
     // 5. Lấy Leaderboard
-    const leaderboard =
-      await sql`SELECT first_name, max_level, best_score FROM users WHERE best_score > 0 ORDER BY best_score DESC LIMIT 10;`;
-    const rankResult =
-      await sql`WITH RankedUsers AS (SELECT telegram_id, RANK() OVER (ORDER BY best_score DESC) as rank FROM users WHERE best_score > 0) SELECT rank FROM RankedUsers WHERE telegram_id = ${telegram_id};`;
+    const leaderboard = await sql`
+      SELECT first_name, max_level, best_score 
+      FROM users 
+      WHERE best_score > 0 
+      ORDER BY best_score DESC 
+      LIMIT 10;
+    `;
+    
+    const rankResult = await sql`
+      WITH RankedUsers AS (
+        SELECT telegram_id, RANK() OVER (ORDER BY best_score DESC) as rank 
+        FROM users 
+        WHERE best_score > 0
+      ) 
+      SELECT rank FROM RankedUsers WHERE telegram_id = ${telegram_id};
+    `;
 
-    const userStats =
-      await sql`SELECT plays_today, current_streak FROM users WHERE telegram_id = ${telegram_id};`;
+    const userStats = await sql`
+      SELECT plays_today, current_streak 
+      FROM users 
+      WHERE telegram_id = ${telegram_id};
+    `;
 
     return res.status(200).json({
       success: true,
@@ -117,7 +135,10 @@ export default async function handler(req, res) {
       plays_today: userStats[0]?.plays_today || 1,
       current_streak: userStats[0]?.current_streak || 1,
     });
+    
   } catch (error) {
-    return res.status(500).json({ error: "Server error" });
+    console.error("API Error:", error);
+    // Trả về chi tiết lỗi để dễ debug nếu cấu hình DB sai
+    return res.status(500).json({ error: "Server error", details: error.message }); 
   }
 }
