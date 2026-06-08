@@ -3,11 +3,11 @@ import { Zap, Timer, Trophy, RotateCcw, Play, CheckCircle2, XCircle, Star } from
 
 const WebApp = window.Telegram?.WebApp || {
   initDataUnsafe: { user: null },
-  ready: () => {},
-  expand: () => {},
+  ready: () => { },
+  expand: () => { },
   HapticFeedback: {
-    impactOccurred: () => {},
-    notificationOccurred: () => {}
+    impactOccurred: () => { },
+    notificationOccurred: () => { }
   }
 };
 
@@ -76,27 +76,58 @@ export default function App() {
     setFeedback(null);
   };
 
-  const endGame = useCallback(() => {
+  const endGame = useCallback(async () => {
     setGameState('gameover');
     if (WebApp.HapticFeedback) {
       WebApp.HapticFeedback.notificationOccurred('warning');
     }
-  }, []);
+
+    try {
+      const telegramId = user?.id || 123456789;
+      const username = user?.username || 'unknown';
+      const firstName = user?.first_name || 'Player';
+
+      console.log("Đang gửi điểm lên DB...", { telegramId, maxLevelReached });
+
+      const response = await fetch('/api/save-score', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          telegram_id: telegramId,
+          username: username,
+          first_name: firstName,
+          max_level: maxLevelReached
+        }),
+      });
+
+      if (!response.ok) {
+        throw new Error('Network response was not ok');
+      }
+
+      const result = await response.json();
+      console.log("Lưu điểm thành công:", result);
+
+    } catch (error) {
+      console.error("Lỗi khi lưu điểm:", error);
+    }
+  }, [user, maxLevelReached]);
 
   const handleAnswer = (selectedAns) => {
     if (feedback !== null) return; // Đang hiện kết quả thì không cho bấm
 
     const isCorrect = selectedAns === currentQ.a;
-    
+
     if (isCorrect) {
       setFeedback('correct');
       const nextLevel = currentLevel + 1;
       if (WebApp.HapticFeedback) WebApp.HapticFeedback.impactOccurred('light');
-      
+
       setTimeout(() => {
         setCurrentLevel(nextLevel);
         if (nextLevel > maxLevelReached) setMaxLevelReached(nextLevel);
-        
+
         if (nextLevel >= 10) {
           endGame(); // Chiến thắng
         } else {
@@ -108,7 +139,7 @@ export default function App() {
     } else {
       setFeedback('wrong');
       if (WebApp.HapticFeedback) WebApp.HapticFeedback.notificationOccurred('error');
-      
+
       setTimeout(() => {
         setCurrentLevel(0); // Rớt đài (Luật Nhanh Như Chớp)
         setCurrentQ(getRandomQuestion());
@@ -125,10 +156,10 @@ export default function App() {
         const isCurrent = level === currentLevel;
         const isPassed = level < currentLevel;
         return (
-          <div 
-            key={level} 
+          <div
+            key={level}
             className={`flex items-center justify-center h-8 text-sm font-bold rounded-lg transition-all
-              ${isCurrent ? 'bg-yellow-500 text-black scale-110 shadow-[0_0_10px_rgba(234,179,8,0.5)]' : 
+              ${isCurrent ? 'bg-yellow-500 text-black scale-110 shadow-[0_0_10px_rgba(234,179,8,0.5)]' :
                 isPassed ? 'bg-green-500/20 text-green-400' : 'text-gray-500'}
             `}
           >
@@ -157,7 +188,7 @@ export default function App() {
 
       {/* Main Content */}
       <main className="flex-1 flex flex-col p-4 max-w-md mx-auto w-full relative">
-        
+
         {gameState === 'menu' && (
           <div className="flex-1 flex flex-col items-center justify-center text-center animate-in fade-in zoom-in duration-300">
             <div className="w-24 h-24 bg-yellow-500 rounded-3xl flex items-center justify-center mb-6 shadow-[0_0_40px_rgba(234,179,8,0.3)] rotate-3">
@@ -169,7 +200,7 @@ export default function App() {
             <p className="text-gray-400 mb-8 px-4">
               Answer 10 questions correctly in a row. One wrong answer and you drop back to zero. You have 60 seconds.
             </p>
-            <button 
+            <button
               onClick={startGame}
               className="w-full bg-yellow-500 hover:bg-yellow-400 text-black font-bold text-lg py-4 rounded-2xl flex items-center justify-center gap-2 transition-transform active:scale-95"
             >
@@ -247,7 +278,7 @@ export default function App() {
             <div className="w-24 h-24 bg-gray-900 rounded-full flex items-center justify-center mb-6 border-4 border-gray-800">
               <Trophy size={40} className={currentLevel >= 10 ? 'text-yellow-500' : 'text-gray-500'} />
             </div>
-            
+
             <h2 className="text-3xl font-black mb-2">
               {currentLevel >= 10 ? 'YOU WON!' : 'TIME IS UP!'}
             </h2>
@@ -256,14 +287,14 @@ export default function App() {
             </p>
 
             <div className="w-full space-y-3">
-              <button 
+              <button
                 onClick={startGame}
                 className="w-full bg-yellow-500 text-black font-bold text-lg py-4 rounded-2xl flex items-center justify-center gap-2 active:scale-95 transition-transform"
               >
                 <RotateCcw size={20} />
                 PLAY AGAIN
               </button>
-              
+
               {/* Nút giả lập kiếm tiền AdsGram / Share */}
               <button className="w-full bg-blue-600 text-white font-bold text-lg py-4 rounded-2xl flex items-center justify-center gap-2 active:scale-95 transition-transform">
                 Share Score to Earn Stars
