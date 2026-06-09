@@ -11,9 +11,9 @@ const WebApp = window.Telegram?.WebApp || {
 
 const MOCK_QUESTIONS = Array.from({ length: 10 }, (_, i) => ({
   id: i,
-  q: `Mock Question Level ${i + 1}: What is 1+1?`,
-  a: "2",
-  options: ["1", "2", "3", "4"].sort(() => Math.random() - 0.5)
+  q: `Has today been a great day??`,
+  a: "Yes",
+  options: ["Yes", "No"].sort(() => Math.random() - 0.5)
 }));
 
 export default function App() {
@@ -121,9 +121,6 @@ export default function App() {
 
     alert("You've used up your turn for today. Come back tomorrow to play again and maintain your winning streak!");
   };
-
-  // Thêm 1 state để lưu chủ đề của ngày hôm nay
-  const [todayTheme, setTodayTheme] = useState("Loading Theme...");
 
   const loadNewQuestions = async () => {
     setIsLoading(true);
