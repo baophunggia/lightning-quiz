@@ -119,7 +119,7 @@ export default function App() {
       return;
     }
 
-    alert("You've used up your turn for today. Come back tomorrow to play again and maintain your winning streak!");
+    return;
   };
 
   const loadNewQuestions = async () => {
@@ -420,13 +420,38 @@ export default function App() {
               </div>
             )}
 
-            <button
-              onClick={handlePlayClick}
-              disabled={isLoading}
-              className="w-full bg-white text-black font-bold py-5 rounded-3xl flex items-center justify-center gap-3 text-lg active:scale-95 transition-all disabled:opacity-70 mt-auto"
-            >
-              <RotateCcw size={22} /> REPLAY
-            </button>
+            <div className="mt-auto flex flex-col gap-3">
+              <button
+                onClick={handlePlayClick}
+                disabled={isLoading || playsToday >= 2}
+                className={`w-full font-bold py-5 rounded-3xl flex items-center justify-center gap-3 text-lg transition-all ${playsToday >= 2
+                  ? 'bg-gray-800 text-gray-500 cursor-not-allowed'
+                  : playsToday === 1
+                    ? 'bg-yellow-500 text-black hover:bg-yellow-400 active:scale-95'
+                    : 'bg-white text-black hover:bg-gray-200 active:scale-95'
+                  } disabled:opacity-70`}
+              >
+                {isLoading ? (
+                  <Loader2 className="animate-spin" size={22} />
+                ) : (
+                  <RotateCcw size={22} />
+                )}
+
+                {isLoading
+                  ? 'LOADING...'
+                  : playsToday === 0
+                    ? 'REPLAY (FREE)'
+                    : playsToday === 1
+                      ? 'WATCH ADS 15S TO REPLAY'
+                      : 'OUT OF TURNS'}
+              </button>
+
+              {playsToday >= 2 && (
+                <p className="text-center text-sm font-medium text-gray-400 px-4 animate-fade-in">
+                  You've used up your turns for today. Come back tomorrow to play again and maintain your winning streak!
+                </p>
+              )}
+            </div>
           </div>
         )}
       </main>
